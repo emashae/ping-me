@@ -60,5 +60,9 @@
         @endif
 
         @yield('content')
+
+        <script>
+            window.userId = @json(auth()->check() ? auth()->user()->id : null);
+        </script>
     </body>
 </html>

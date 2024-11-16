@@ -17,27 +17,32 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
+// Public Routes (accessible by guests)
 Route::get('/', function () {
     return view('app');
 });
 
-Route::get("/login", [LoginController::class, "index"])->name("login");
-Route::post("/login", [LoginController::class, "login"])->name("login.post");
+// Grouping Login/Logout routes with guest middleware
+Route::middleware('guest')->group(function () {
+    Route::get("/login", [LoginController::class, "index"])->name("login");
+    Route::post("/login", [LoginController::class, "login"])->name("login.post");
 
-Route::get("/register", [RegisterController::class, "index"])->name("register");
+    Route::get("/register", [RegisterController::class, "index"])->name("register");
+    Route::post("/register", [RegisterController::class, "register"])->name("register.post");
+});
 
-Route::post("/register", [RegisterController::class, "register"])->name("register.post");
+// Protected Routes (only accessible when logged in)
+Route::middleware('auth')->group(function () {
+    // Logout route
+    Route::post("/logout", [LoginController::class, "logout"])->name("logout");
 
-Route::post("/logout", [LoginController::class, "logout"])->name("logout");
+    // Online users route
+    Route::get("/online-users", [UsersController::class, "getOnlineUsers"]);
 
-Route::get("/online-users", [UsersController::class, "getOnlineUsers"]);
-
-Route::group(['prefix' => 'messages', 'middleware' => 'auth'], function() {
-
-    Route::get("/", [MessagesController::class, "index"]);
-
-    Route::post("/", [MessagesController::class, "store"])->name("message.store");
-
-    Route::put("/{id}", [MessagesController::class, "update"]);
-
+    // Messages routes (can be further simplified using resource controllers)
+    Route::prefix('messages')->group(function() {
+        Route::get("/", [MessagesController::class, "index"]);
+        Route::post("/", [MessagesController::class, "store"])->name("message.store");
+        Route::put("/{id}", [MessagesController::class, "update"]);
+    });
 });

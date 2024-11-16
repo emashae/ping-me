@@ -30,26 +30,24 @@
 </template>
 
 <script>
-import {ref, watch} from "vue";
+import { ref, watch } from "vue";
 import _ from "lodash";
-
 import MessageLine from "@/chat/components/MessageLine.vue";
 import EmojiSelect from "@/chat/components/EmojiSelect.vue";
+import axios from "axios"; // Fix: Import axios directly
 
 export default {
     name: "ChatPanel",
-    components: {EmojiSelect, MessageLine},
+    components: { EmojiSelect, MessageLine },
     props: ["user", "emittedMessage"],
     emits: ["onCloseChat"],
     setup(props) {
-
         const { user } = props;
-
         const chatContentRef = ref(null);
 
         const messageContent = ref("");
         const userMessages = ref([]);
-        let scrollPoint = ref(0);
+        const scrollPoint = ref(0);
         const loading = ref(false);
         const emojiBtnClicked = ref(false);
 
@@ -57,8 +55,7 @@ export default {
             sendMessage(user.id, emojiHtml);
         }
 
-        function showEmojiList()
-        {
+        function showEmojiList() {
             emojiBtnClicked.value = true;
         }
 
@@ -71,7 +68,7 @@ export default {
         }
 
         function submitMessage() {
-            if(!messageContent.value) {
+            if (!messageContent.value) {
                 return;
             }
 
@@ -86,92 +83,99 @@ export default {
                 message_content: messageContent
             };
 
-            window.axios.post("/messages", payload)
-                .then(response => {
-                    if(response && response.data.status) {
+            // Fix: Replace window.axios with imported axios
+            axios
+                .post("/messages", payload)
+                .then((response) => {
+                    if (response && response.data.status) {
                         // display and append the message in the message list
                         userMessages.value.push(response.data.message);
 
-                        if(cb) {
+                        if (cb) {
                             cb();
                         }
 
                         // scroll bottom
                         scrollToChatBottom();
                     }
-                }).catch(error => {
-                console.error(error.response);
-            });
+                })
+                .catch((error) => {
+                    console.error("Error sending message:", error.response);
+                });
         }
 
         async function getMessages() {
-            showLoading();
+            try {
+                showLoading();
+                // Fix: Replace window.axios with imported axios
+                const result = await axios.get(`/messages?receiver_id=${user.id}`);
+                hideLoading();
 
-            const result = await window.axios.get(`/messages?receiver_id=${user.id}`);
-            hideLoading();
-
-            if(result.data.messages) {
-                userMessages.value = result.data.messages.reverse();
-
-                scrollToChatBottom();
+                if (result.data.messages) {
+                    userMessages.value = result.data.messages.reverse();
+                    scrollToChatBottom();
+                }
+            } catch (error) {
+                hideLoading();
+                console.error("Error fetching messages:", error.response);
             }
         }
 
-        function scrollToChatBottom()
-        {
+        function scrollToChatBottom() {
             setTimeout(() => {
-                if(chatContentRef && chatContentRef.value) {
+                if (chatContentRef && chatContentRef.value) {
                     chatContentRef.value.scrollTop = chatContentRef.value.scrollHeight;
-
                     scrollPoint.value = chatContentRef.value.scrollTop;
                 }
             }, 300);
         }
 
         const handleChatScroll = _.debounce((e) => {
-                // if the user scrolls to top
-                if(e.target.scrollTop - 50 < scrollPoint.value) {
-                    showLoading();
+            // if the user scrolls to top
+            if (e.target.scrollTop - 50 < scrollPoint.value) {
+                showLoading();
 
-                    const oldMessage = userMessages.value[0];
+                const oldMessage = userMessages.value[0];
 
-                    window.axios.get(`/messages?receiver_id=${user.id}&earlier_date=${oldMessage.created_at}`)
-                        .then(response => {
-                            if(response && response.data.messages) {
-                                const filtered = [];
+                // Fix: Replace window.axios with imported axios
+                axios
+                    .get(`/messages?receiver_id=${user.id}&earlier_date=${oldMessage.created_at}`)
+                    .then((response) => {
+                        if (response && response.data.messages) {
+                            const filtered = [];
 
-                                response.data.messages.reverse().forEach(message => {
-                                    if(!userMessages.value.find(m => m.id == message.id)) {
-                                        filtered.push(message);
-                                    }
-                                });
+                            response.data.messages.reverse().forEach((message) => {
+                                if (!userMessages.value.find((m) => m.id == message.id)) {
+                                    filtered.push(message);
+                                }
+                            });
 
-                                userMessages.value = [...filtered, ...userMessages.value];
-                            }
+                            userMessages.value = [...filtered, ...userMessages.value];
+                        }
 
-                            setTimeout(() => {
-                                hideLoading();
-                            }, 2000);
+                        setTimeout(() => {
+                            hideLoading();
+                        }, 2000);
+                    })
+                    .catch((error) => {
+                        setTimeout(() => {
+                            hideLoading();
+                        }, 2000);
 
-                        }).catch(error => {
-                            setTimeout(() => {
-                                hideLoading();
-                            }, 2000);
-
-                        console.error(error.response);
+                        console.error("Error fetching older messages:", error.response);
                     });
-                }
+            }
 
-                scrollPoint.value = e.target.scrollTop;
+            scrollPoint.value = e.target.scrollTop;
         }, 1000);
 
         getMessages();
 
         watch(() => props.emittedMessage, (newMessage, oldMessage) => {
-            if(newMessage) {
-                const isMessageExist = userMessages.value.find(m => m.id == newMessage.id);
+            if (newMessage) {
+                const isMessageExist = userMessages.value.find((m) => m.id == newMessage.id);
 
-                if(!isMessageExist) {
+                if (!isMessageExist) {
                     userMessages.value.push(newMessage);
                     scrollToChatBottom();
                 }
@@ -188,11 +192,10 @@ export default {
             emojiBtnClicked,
             showEmojiList,
             handleSelectEmoji
-        }
+        };
     }
-}
+};
 </script>
 
 <style scoped>
-
 </style>

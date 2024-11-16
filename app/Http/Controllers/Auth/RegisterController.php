@@ -3,35 +3,60 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\RegisterRequest;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use Exception;
 
 class RegisterController extends Controller
 {
-    public function index(){
-        return view("auth.register");
+    /**
+     * Show the registration page.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function index()
+    {
+        return view('auth.register');
     }
 
-    public function register(Request $request)
+    /**
+     * Handle the registration process.
+     *
+     * @param \App\Http\Requests\RegisterRequest $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function register(RegisterRequest $request)
     {
-        $request->validate([
-           'name' => 'required|string',
-           'email' => 'required|email|unique:users',
-           'password' => 'required|min:4'
-        ]);
+        try {
+            // The validated data from the request is automatically available
+            $data = $request->validated();
 
-        $data = $request->all();
+            // Check if the email already exists
+            if (User::where('email', $data['email'])->exists()) {
+                return redirect()->back()->with('error', 'Email is already taken.');
+            }
 
-        $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password'])
-        ]);
+            // Create the user
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+            ]);
 
-        Auth::loginUsingId($user->id);
+            // Log the user in after registration
+            Auth::loginUsingId($user->id);
 
-        return redirect("/")->withSuccess("User registered successfully!");
+            // Redirect to the home page with a success message
+            return redirect('/')->with('success', 'User registered successfully!');
+
+        } catch (Exception $e) {
+            // Log the exception for debugging purposes
+            Log::error('Registration failed: ' . $e->getMessage());
+
+            return redirect()->back()->with('error', 'An error occurred during registration. Please try again later.');
+        }
     }
 }

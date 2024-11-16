@@ -3,38 +3,78 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Requests\LoginRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Redirect;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class LoginController extends Controller
 {
-    public function index(){
+    /**
+     * Show the login page.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function index()
+    {
         return view("auth.login");
     }
 
-    public function login(Request $request)
+    /**
+     * Handle the login attempt.
+     *
+     * @param \App\Http\Requests\LoginRequest $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function login(LoginRequest $request)
     {
-        $request->validate([
-           'email' => 'required|email',
-           'password' => 'required'
-        ]);
+        try {
+            $credentials = $request->only('email', 'password');
 
-        $credentials = $request->only('email', 'password');
+            // Attempt to log the user in
+            if (Auth::attempt($credentials)) {
+                // Regenerate the session to prevent session fixation attacks
+                $request->session()->regenerate();
 
-        if(Auth::attempt($credentials)) {
-            return redirect()->intended('/')
-                    ->withSuccess('Signed in successfully!');
+                return redirect()->intended('/')
+                    ->with('success', 'Signed in successfully!');
+            }
+
+            // If login attempt fails, redirect back with error message
+            return redirect()->route('login')
+                ->with('error', 'The provided credentials are incorrect.')
+                ->withInput($request->only('email'));
+
+        } catch (Exception $e) {
+            // Log the exception for debugging
+            Log::error('Login failed: ' . $e->getMessage());
+
+            return redirect()->route('login')
+                ->with('error', 'An error occurred. Please try again later.');
         }
-
-        return redirect("login")->withError("Login details are not correct");
     }
 
+    /**
+     * Handle user logout.
+     *
+     * @return \Illuminate\Http\RedirectResponse
+     */
     public function logout()
     {
-        Session::flush();
-        Auth::logout();
+        try {
+            // Invalidate session and regenerate token for security purposes
+            Auth::logout();
+            Session::invalidate();
+            Session::regenerateToken();
 
-        return redirect("/");
+            return redirect()->route('login')->with('success', 'Logged out successfully.');
+        } catch (Exception $e) {
+            // Log any errors that occur during logout
+            Log::error('Logout failed: ' . $e->getMessage());
+
+            return redirect()->route('login')->with('error', 'An error occurred while logging out.');
+        }
     }
 }

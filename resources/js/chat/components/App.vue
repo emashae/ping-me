@@ -30,39 +30,44 @@
 </template>
 
 <script>
-
-import {provide, ref, reactive, onMounted} from "vue";
+import { provide, ref, reactive, onMounted } from "vue";
 import { toast } from 'vue3-toastify';
 import 'vue3-toastify/dist/index.css';
 
 import ChatPanel from "@/chat/components/ChatPanel.vue";
+import axios from 'axios'; // Ensure axios is imported
 
 export default {
     name: "App",
-    components: {ChatPanel},
+    components: { ChatPanel },
     props: ["auth"],
-    setup({auth}) {
-
+    setup({ auth }) {
         provide('auth', auth);
 
         const onlineUsers = ref([]);
 
-        // storing array of chat panels of clicked users
+        // Storing array of chat panels of clicked users
         // chat panel is an object of this form {selectedUser: null, emittedMessage: null}
-        let chatPanels = reactive({panels: []});
+        let chatPanels = reactive({ panels: [] });
 
+        // Fetch online users
         async function getOnlineUsers() {
-            const result = await window.axios.get("/online-users");
+            try {
+                const result = await axios.get("/online-users");
 
-            if(result.data.users) {
-                onlineUsers.value = result.data.users;
+                if (result.data.users) {
+                    onlineUsers.value = result.data.users;
+                }
+            } catch (error) {
+                console.error("Error fetching online users:", error);
             }
         }
 
+        // Show chat panel for the selected user
         function showChatPanel(user, emittedMessage = null) {
             const isPanelOpened = chatPanels.panels.find(panel => panel.selectedUser.id === user.id);
 
-            if(!isPanelOpened) {
+            if (!isPanelOpened) {
                 const userPanel = {
                     selectedUser: user,
                     emittedMessage
@@ -72,39 +77,36 @@ export default {
                 return true;
             }
 
-            // if the panel already opened
+            // If the panel is already opened
             const index = chatPanels.panels.findIndex(panel => panel.selectedUser.id === user.id);
-
-            chatPanels.panels[index] = {...chatPanels.panels[index], emittedMessage};
+            chatPanels.panels[index] = { ...chatPanels.panels[index], emittedMessage };
             return false;
         }
 
+        // Hide chat panel for the selected user
         function hideChatPanel(user) {
             const filtered = [...chatPanels.panels].filter(panel => panel.selectedUser.id !== user.id);
-
             chatPanels.panels = [...filtered];
-
             removeChatPanelFromStorage(user);
         }
 
-        function updateSelectedUser(selectedUser)
-        {
+        // Update selected user to mark unseen messages as read
+        function updateSelectedUser(selectedUser) {
             const userIndex = onlineUsers.value.findIndex(u => u.id === selectedUser.id);
 
-            if(userIndex !== -1) {
+            if (userIndex !== -1) {
                 onlineUsers.value[userIndex].unseen_messages = [];
             }
         }
 
-        function handleUserClick(user)
-        {
+        // Handle user click to show chat panel
+        function handleUserClick(user) {
             showChatPanel(user);
-
             updateSelectedUser(user);
-
             persistChatPanelInStorage(user);
         }
 
+        // Display toast notification
         const displayToastMessage = (message) => {
             toast(message, {
                 autoClose: 3000,
@@ -113,24 +115,27 @@ export default {
             });
         }
 
+        // Play chat notification tone
         const playChatTone = () => {
             (document.getElementById("chat-tone")).play();
         }
 
+        // Send message update request to the server
         const sendMessageUpdateRequest = (messageId) => {
-            window.axios.put(`/messages/${messageId}`)
+            axios.put(`/messages/${messageId}`)
                 .then(response => {
-                    if(response.data.status) {
+                    if (response.data.status) {
                         console.log('message updated');
                     }
                 });
         }
 
-        function persistChatPanelInStorage(user)
-        {
-            if(sessionStorage.getItem("opened_panels") && sessionStorage.getItem("opened_panels") !== "") {
-                const opened = JSON.parse(sessionStorage.getItem("opened_panels"));
-                if(!opened.find(p => p.id == user.id)) {
+        // Persist opened chat panel to session storage
+        function persistChatPanelInStorage(user) {
+            const openedPanels = sessionStorage.getItem("opened_panels");
+            if (openedPanels && openedPanels !== "") {
+                const opened = JSON.parse(openedPanels);
+                if (!opened.find(p => p.id == user.id)) {
                     opened.push(user);
                     sessionStorage.setItem("opened_panels", JSON.stringify(opened));
                 }
@@ -139,41 +144,39 @@ export default {
             }
         }
 
-        function removeChatPanelFromStorage(user)
-        {
-            if(sessionStorage.getItem("opened_panels")) {
-                let opened = JSON.parse(sessionStorage.getItem("opened_panels"));
+        // Remove chat panel from session storage
+        function removeChatPanelFromStorage(user) {
+            const openedPanels = sessionStorage.getItem("opened_panels");
+            if (openedPanels) {
+                let opened = JSON.parse(openedPanels);
                 opened = opened.filter(p => p.id != user.id);
                 sessionStorage.setItem("opened_panels", JSON.stringify(opened));
             }
         }
 
+        // Fetch online users on mount
         getOnlineUsers();
 
+        // Reopen chat panels from session storage
         onMounted(() => {
-           if(auth) {
+            if (auth) {
+                const opened = JSON.parse(sessionStorage.getItem("opened_panels"));
+                if (opened) {
+                    opened.forEach(p => {
+                        showChatPanel(p);
+                    });
+                }
 
-               // check for persisted chat panels and reopens it
-               const opened = JSON.parse(sessionStorage.getItem("opened_panels"));
-               if(opened) {
-                   opened.forEach(p => {
-                       showChatPanel(p);
-                   });
-               }
-
-               window.Echo.private(`messages.${auth.id}`)
+                // Listen for incoming messages via Echo
+                window.Echo.private(`messages.${auth.id}`)
                     .listen('\\App\\Events\\MessageSent', e => {
                         const message = e.message;
-
                         showChatPanel(message.sender, message);
-
                         displayToastMessage(message.content);
-
                         playChatTone();
-
                         sendMessageUpdateRequest(message.id);
                     });
-           }
+            }
         });
 
         return {
@@ -188,5 +191,4 @@ export default {
 </script>
 
 <style scoped>
-
 </style>
