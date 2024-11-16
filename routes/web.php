@@ -10,6 +10,8 @@ Route::get('/', function () {
 
 Route::get('/login', [LoginController::class, "index"])->name("login");
 
+Route::post("/login", [LoginController::class, "login"])->name("login.post");
+
 Route::get('/register', [RegisterController::class, "index"])->name("register");
 
 Route::get("/register", [RegisterController::class, "index"])->name("register");
