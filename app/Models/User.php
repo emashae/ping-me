@@ -45,4 +45,11 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function unseenMessages()
+    {
+        return $this->hasMany(Message::class, 'sender_id')
+                ->where('seen', 1)
+                ->where('receiver_id', auth()->user()->id);
+    }
 }
